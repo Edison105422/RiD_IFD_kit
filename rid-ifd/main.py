@@ -41,15 +41,15 @@ def main(out_dir, mol_dir, rid_json, machine_json, cv_file, init_model, record_n
                 enhcMD.post_enhc(iter_idx, rid_json, machine_json, base_dir=out_dir)
                 record_iter(record_file, iter_idx, tag)
             elif tag == 3:
-                print("prepare gen_relax")
+                print("prepare gen_relaxMD")
                 enhcMD.make_enhc(iter_idx, rid_json, prev_model, mol_dir, cv_file ,base_dir=out_dir)
                 record_iter(record_file, iter_idx, tag)
             elif tag == 4:
-                print("run relax")
+                print("run relaxMD")
                 enhcMD.run_enhc(iter_idx, rid_json, machine_json, base_dir=out_dir)
                 record_iter(record_file, iter_idx, tag)
             elif tag == 5:
-                print("prepare relax")
+                print("prepare relaxMD")
                 enhcMD.post_enhc(iter_idx, rid_json, machine_json, base_dir=out_dir)
                 record_iter(record_file, iter_idx, tag)
             """

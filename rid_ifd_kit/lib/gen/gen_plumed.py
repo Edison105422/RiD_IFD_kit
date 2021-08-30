@@ -113,8 +113,169 @@ def user_plumed(cv_file): #read from cv_file
         print_content = " ".join(print_content_list)
     return ret, cv_names, print_content
 
+def get_centerdist(CONF):
+    dist_names = CONF
+    return dist_names
 
 def general_plumed(TASK,
+                   CONF,
+                   at_upper,
+                   kappa=500.0,
+                   temp=3000.0,
+                   tau=10.0,
+                   gamma=0.1,
+                   pstride=5,
+                   pfile="plm.out"):
+    ret = ""
+    if TASK == "res":
+        ptr, ptr_names = make_restraint(cv_names, kappa, 0.0)
+        ret += (ptr)
+        ret += "\n"
+    elif TASK == "upperwall":
+        ptr, ptr_names = make_walls(get_centerdist(CONF), kappa, at_upper, 0.0, 2, 1, 0)
+        ret += (ptr)
+        ret += "\n"
+    elif TASK == "dpbias":
+        ret += (make_deep_bias(cv_names))
+        ret += "\n"
+    elif TASK == "bf":
+        None
+    else:
+        raise RuntimeError("unknow task: " + TASK)
+    return ret
+
+def make_plumed(OUT,
+                TASK,
+                CONF,
+                at_upper=5.0,
+                kappa=500.0,
+                temp=3000.0,
+                tau=10.0,
+                gamma=0.1,
+                pstride=5,
+                pfile="plm.out"):
+    ret = general_plumed(TASK, CONF, at_upper, kappa=kappa, temp=temp,
+                         tau=tau, gamma=gamma, pstride=pstride, pfile=pfile)
+    if os.path.basename(OUT) == '':
+        if TASK == "dpbias":
+            OUT = os.path.abspath(OUT) + "/plumed.dat"
+        elif TASK == "bf":
+            OUT = os.path.abspath(OUT) + "/plumed.bf.dat"
+        elif TASK == "res":
+            OUT = os.path.abspath(OUT) + "/plumed.res.dat"
+        elif TASK == "upperwall":
+            OUT = os.path.abspath(OUT) + "/plumed.upperwall.dat"
+    with open(OUT, 'w') as plu:
+        plu.write(ret)
+
+def make_plumed_origin(OUT,
+                TASK,
+                CONF,
+                CV_FILE,
+                at_upper,
+                kappa=500.0,
+                temp=3000.0,
+                tau=10.0,
+                gamma=0.1,
+                pstride=5,
+                pfile="plm.out"):
+    ret = general_plumed(TASK, CONF, CV_FILE, at_upper, kappa=kappa, temp=temp,
+                         tau=tau, gamma=gamma, pstride=pstride, pfile=pfile)
+    if os.path.basename(OUT) == '':
+        if TASK == "dpbias":
+            OUT = os.path.abspath(OUT) + "/plumed.dat"
+        elif TASK == "bf":
+            OUT = os.path.abspath(OUT) + "/plumed.bf.dat"
+        elif TASK == "res":
+            OUT = os.path.abspath(OUT) + "/plumed.res.dat"
+        elif TASK == "upperwall":
+            OUT = os.path.abspath(OUT) + "/plumed.upperwall.dat"
+    with open(OUT, 'w') as plu:
+        plu.write(ret)
+
+def conf_enhc_plumed(plm_conf, plu_type, #graph_list, enhc_trust_lvl_1=None, enhc_trust_lvl_2=None,
+                     frame_freq=None, enhc_out_plm=None):
+    """if plu_type == "enhc":
+        replace(plm_conf, "MODEL=[^ ]* ", ("MODEL=%s " % graph_list))
+        replace(plm_conf, "TRUST_LVL_1=[^ ]* ",
+                ("TRUST_LVL_1=%f " % enhc_trust_lvl_1))
+        replace(plm_conf, "TRUST_LVL_2=[^ ]* ",
+                ("TRUST_LVL_2=%f " % enhc_trust_lvl_2))
+        replace(plm_conf, "STRIDE=[^ ]* ", ("STRIDE=%d " % frame_freq))
+        replace(plm_conf, "FILE=[^ ]* ", ("FILE=%s " % enhc_out_plm))
+    """
+    if plu_type == "bf":
+        replace(plm_conf, "STRIDE=[^ ]* ", ("STRIDE=%d " % frame_freq))
+        replace(plm_conf, "FILE=[^ ]* ", ("FILE=%s " % enhc_out_plm))
+
+
+def make_res_templ_plumed(plm_path, conf_file,
+                        at_upper, res_kappa, res_ang_stride, res_prt_file):
+    ret = general_plumed("res", conf_file, at_upper, 
+                         kappa=res_kappa,
+                         pstride=res_ang_stride,
+                         pfile=res_prt_file)
+    if os.path.basename(plm_path) == "":
+        plm_path = os.path.abspath(plm_path) + "/plumed.res.templ"
+    with open(plm_path, "w") as fp:
+        fp.write(ret)
+
+
+def make_res_templ_plumed_origin(plm_path, conf_file, cv_file, 
+                        at_upper, res_kappa, res_ang_stride, res_prt_file):
+    ret = general_plumed("res", conf_file, cv_file, at_upper, 
+                         kappa=res_kappa,
+                         pstride=res_ang_stride,
+                         pfile=res_prt_file)
+    if os.path.basename(plm_path) == "":
+        plm_path = os.path.abspath(plm_path) + "/plumed.res.templ"
+    with open(plm_path, "w") as fp:
+        fp.write(ret)
+
+
+def conf_res_plumed(plm_path, frame_freq):
+    replace(plm_path, "STRIDE=[^ ]* ", "STRIDE=%d " % frame_freq)
+
+
+def _main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("TASK", type=str,
+                        help="the type of task, either res, afed or dpbias")
+    parser.add_argument("CONF", type=str,
+                        help="the conf file")
+    #parser.add_argument("CVFILE", type=str,
+    #                    help="the json file defining the dih angles")
+    parser.add_argument("-a", "--at_upper", default=5.0, type=float,
+                        help="the upperwall limit")
+    parser.add_argument("-k", "--kappa", default=500, type=float,
+                        help="the spring constant")
+    parser.add_argument("-T", "--temp", default=3000.0, type=float,
+                        help="the temperature of afed")
+    parser.add_argument("-t", "--tau", default=10.0, type=float,
+                        help="the relaxation timescale of afed")
+    parser.add_argument("-g", "--gamma", default=0.1, type=float,
+                        help="the frection const of afed")
+    parser.add_argument("-s", "--stride", default=5, type=int,
+                        help="the printing stride")
+    parser.add_argument("-f", "--print-file", default="plm.out", type=str,
+                        help="the printing file")
+    args = parser.parse_args()
+
+    ret = general_plumed(args.TASK, args.CONF, args.at_upper, args.kappa,
+                         args.temp, args.tau, args.gamma, args.stride, args.print_file)
+
+    print(ret)
+
+
+if __name__ == '__main__':
+    # _main()
+    CONF = "/home/dongdong/wyz/rid-kit/tests/benchmark_mol/conf.gro"
+    CV_FILE = "/home/dongdong/wyz/rid-kit/tests/benchmark_json/cv.json"
+    TASK = "dpbias"
+    general_plumed(TASK, CONF, at_upper=5.0, kappa=500.0, temp=3000.0,
+                   tau=10.0, gamma=0.1, pstride=5, pfile="plm.out")
+
+def general_plumed_origin(TASK,
                    CONF,
                    CV_FILE,
                    at_upper,
@@ -204,96 +365,3 @@ def general_plumed(TASK,
     else:
         ret += print_content
     return ret
-
-
-def make_plumed(OUT,
-                TASK,
-                CONF,
-                CV_FILE,
-                at_upper,
-                kappa=500.0,
-                temp=3000.0,
-                tau=10.0,
-                gamma=0.1,
-                pstride=5,
-                pfile="plm.out"):
-    ret = general_plumed(TASK, CONF, CV_FILE, at_upper, kappa=kappa, temp=temp,
-                         tau=tau, gamma=gamma, pstride=pstride, pfile=pfile)
-    if os.path.basename(OUT) == '':
-        if TASK == "dpbias":
-            OUT = os.path.abspath(OUT) + "/plumed.dat"
-        elif TASK == "bf":
-            OUT = os.path.abspath(OUT) + "/plumed.bf.dat"
-        elif TASK == "res":
-            OUT = os.path.abspath(OUT) + "/plumed.res.dat"
-        elif TASK == "upperwall":
-            OUT = os.path.abspath(OUT) + "/plumed.upperwall.dat"
-    with open(OUT, 'w') as plu:
-        plu.write(ret)
-
-def conf_enhc_plumed(plm_conf, plu_type, graph_list, enhc_trust_lvl_1=None, enhc_trust_lvl_2=None, frame_freq=None, enhc_out_plm=None):
-    if plu_type == "enhc":
-        replace(plm_conf, "MODEL=[^ ]* ", ("MODEL=%s " % graph_list))
-        replace(plm_conf, "TRUST_LVL_1=[^ ]* ",
-                ("TRUST_LVL_1=%f " % enhc_trust_lvl_1))
-        replace(plm_conf, "TRUST_LVL_2=[^ ]* ",
-                ("TRUST_LVL_2=%f " % enhc_trust_lvl_2))
-        replace(plm_conf, "STRIDE=[^ ]* ", ("STRIDE=%d " % frame_freq))
-        replace(plm_conf, "FILE=[^ ]* ", ("FILE=%s " % enhc_out_plm))
-    elif plu_type == "bf":
-        replace(plm_conf, "STRIDE=[^ ]* ", ("STRIDE=%d " % frame_freq))
-        replace(plm_conf, "FILE=[^ ]* ", ("FILE=%s " % enhc_out_plm))
-
-
-def make_res_templ_plumed(plm_path, conf_file, cv_file, at_upper, res_kappa, res_ang_stride, res_prt_file):
-    ret = general_plumed("res", conf_file, cv_file, at_upper, 
-                         kappa=res_kappa,
-                         pstride=res_ang_stride,
-                         pfile=res_prt_file)
-    if os.path.basename(plm_path) == "":
-        plm_path = os.path.abspath(plm_path) + "/plumed.res.templ"
-    with open(plm_path, "w") as fp:
-        fp.write(ret)
-
-
-def conf_res_plumed(plm_path, frame_freq):
-    replace(plm_path, "STRIDE=[^ ]* ", "STRIDE=%d " % frame_freq)
-
-
-def _main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("TASK", type=str,
-                        help="the type of task, either res, afed or dpbias")
-    parser.add_argument("CONF", type=str,
-                        help="the conf file")
-    parser.add_argument("CVFILE", type=str,
-                        help="the json file defining the dih angles")
-    parser.add_argument("-a", "--at_upper", default=5.0, type=float,
-                        help="the upperwall limit")
-    parser.add_argument("-k", "--kappa", default=500, type=float,
-                        help="the spring constant")
-    parser.add_argument("-T", "--temp", default=3000.0, type=float,
-                        help="the temperature of afed")
-    parser.add_argument("-t", "--tau", default=10.0, type=float,
-                        help="the relaxation timescale of afed")
-    parser.add_argument("-g", "--gamma", default=0.1, type=float,
-                        help="the frection const of afed")
-    parser.add_argument("-s", "--stride", default=5, type=int,
-                        help="the printing stride")
-    parser.add_argument("-f", "--print-file", default="plm.out", type=str,
-                        help="the printing file")
-    args = parser.parse_args()
-
-    ret = general_plumed(args.TASK, args.CONF, args.CVFILE, at_upper, args.kappa,
-                         args.temp, args.tau, args.gamma, args.stride, args.print_file)
-
-    print(ret)
-
-
-if __name__ == '__main__':
-    # _main()
-    CONF = "/home/dongdong/wyz/rid-kit/tests/benchmark_mol/conf.gro"
-    CV_FILE = "/home/dongdong/wyz/rid-kit/tests/benchmark_json/cv.json"
-    TASK = "dpbias"
-    general_plumed(TASK, CONF, CV_FILE, at_upper=5.0, kappa=500.0, temp=3000.0,
-                   tau=10.0, gamma=0.1, pstride=5, pfile="plm.out")

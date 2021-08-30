@@ -19,14 +19,14 @@ from rid_ifd_kit.lib.cmpf import cmpf
 from rid_ifd_kit.lib.machine import set_resource, set_machine
 from dpdispatcher.submission import Submission, Job, Task
 
-enhc_name = "00.enhcMD"
+enhc_name = "00.compressedMD"
 enhc_plm = "plumed.dat"
 enhc_bf_plm = "plumed.bf.dat"
 enhc_out_plm = "plm.out"
 enhc_out_conf = "confs/"
 enhc_out_angle = "angle.rad.out"
 
-res_name = "01.resMD"
+res_name = "01.relaxMD"
 res_plm = "plumed.res.dat"
 
 
@@ -74,14 +74,12 @@ def get_graph_list(graph_files):
 
 def make_enhc(iter_index,
               json_file,
-              graph_files,
               mol_dir,
-              cv_file,
               base_dir='./'):
     base_dir = os.path.abspath(base_dir) + "/"
     json_file = os.path.abspath(json_file)
-    cv_file = os.path.abspath(cv_file)
-    graph_files.sort()
+    #cv_file = os.path.abspath(cv_file)
+    #graph_files.sort()
     fp = open(json_file, 'r')
     jdata = json.load(fp)
     fp.close()
@@ -150,23 +148,17 @@ def make_enhc(iter_index,
                    [enhc_trust_lvl_1], fmt='%.6f')
 
         #make_plumed(walker_path, "dpbias", conf_file, cv_file)
-        make_plumed(walker_path, "bf", conf_file, cv_file)
-        make_plumed(walker_path, "upperwall", conf_file, cv_file)
+        make_plumed(walker_path, "bf", conf_file)
+        make_plumed(walker_path, "upperwall", conf_file)
 
         #prep_graph(graph_files, walker_path)
         #graph_list = get_graph_list(graph_files)
         graph_list = []
         #conf_enhc_plumed(walker_path + enhc_plm, "enhc", graph_list, enhc_trust_lvl_1=enhc_trust_lvl_1,
         #                 enhc_trust_lvl_2=enhc_trust_lvl_2, frame_freq=frame_freq, enhc_out_plm=enhc_out_plm)
-        conf_enhc_plumed(walker_path + enhc_bf_plm, "bf", graph_list,
+        conf_enhc_plumed(walker_path + enhc_bf_plm, "bf",
                          frame_freq=frame_freq, enhc_out_plm=enhc_out_plm)
-
-        if len(graph_list) == 0:
-            log_task("brute force MD without NN acc")
-        else:
-            log_task("use NN model(s): " + graph_list)
-            log_task("set trust l1 and l2: %f %f" %
-                     (enhc_trust_lvl_1, enhc_trust_lvl_2))
+        log_task("brute force MD without NN acc")
     print("Enhanced sampling has prepared.")
 
 
