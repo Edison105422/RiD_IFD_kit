@@ -26,37 +26,38 @@ def make_restraint(angle_names,
                 "\n")
     return ret, res_names
 
-def make_walls(dist_names,
-                    kappa,#check papers for value of kappa
-                    at_upper, at_lower,
-                    exp,# assume the kappa and exp, eps are identical for up and low
-                    eps,
-                    offset):
+def make_walls(CONF,
+                kappa,#check papers for value of kappa
+                at_upper, at_lower,
+                exp,# assume the kappa and exp, eps are identical for up and low
+                eps,
+                offset):
     ret = ""
-    wall_names = []
-    for dist_print in dist_names:
-        wall_name = "wall-" + dist_print
-        wall_names.append("upper_" + wall_name)
-        wall_names.append("lower_" + wall_name)
-        ret += (("upper_" + wall_name + ":") + " " +
-                "UPPER_WALLS " +
-                ("ARG=" + dist_print).ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
-                "AT=" + str(at_upper) + " " +
-                "KAPPA=" + str(kappa) + " " +
-                "EXP=" + str(exp) + " " +
-                "EPS=" + str(eps) + " " +
-                "OFFSET=" + str(offset) + " " +
-                "\n" +
-                ("lower_" + wall_name + ":") + " " +
-                "LOWER_WALLS " +
-                ("ARG=" + dist_print).ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
-                "AT=" + str(at_lower) + " " +
-                "KAPPA=" + str(kappa) + " " +
-                "EXP=" + str(exp) + " " +
-                "EPS=" + str(eps) + " " +
-                "OFFSET=" + str(offset) + " " +
+    wall_names = ["uwall","lwall"]
+    dist = gen_centerdist(CONF)
+    ret += ("uwall: UPPER_WALLS " +
+            ("ARG=" + dist).ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
+            "AT=" + str(at_upper) + " " +
+            "KAPPA=" + str(kappa) + " " +
+            "EXP=" + str(exp) + " " +
+            "EPS=" + str(eps) + " " +
+            "OFFSET=" + str(offset) + " " +
+            "\n" +
+            "lwall: LOWER_WALLS " +
+            ("ARG=" + dist).ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
+            "AT=" + str(at_lower) + " " +
+            "KAPPA=" + str(kappa) + " " +
+            "EXP=" + str(exp) + " " +
+            "EPS=" + str(eps) + " " +
+            "OFFSET=" + str(offset) + " " +
                 "\n")
     return ret, wall_names
+
+
+def gen_centerdist(CONF):
+    
+    virtual_lig = 
+    return dist
 
 def make_deep_bias(angle_names,
                    trust_lvl_1=1.0,
@@ -113,9 +114,6 @@ def user_plumed(cv_file): #read from cv_file
         print_content = " ".join(print_content_list)
     return ret, cv_names, print_content
 
-def get_centerdist(CONF):
-    dist_names = CONF
-    return dist_names
 
 def general_plumed(TASK,
                    CONF,
@@ -127,16 +125,9 @@ def general_plumed(TASK,
                    pstride=5,
                    pfile="plm.out"):
     ret = ""
-    if TASK == "res":
-        ptr, ptr_names = make_restraint(cv_names, kappa, 0.0)
+    if TASK == "upperwall":
+        ptr, ptr_names = make_walls(CONF, kappa, at_upper, 0.0, 2, 1, 0)
         ret += (ptr)
-        ret += "\n"
-    elif TASK == "upperwall":
-        ptr, ptr_names = make_walls(get_centerdist(CONF), kappa, at_upper, 0.0, 2, 1, 0)
-        ret += (ptr)
-        ret += "\n"
-    elif TASK == "dpbias":
-        ret += (make_deep_bias(cv_names))
         ret += "\n"
     elif TASK == "bf":
         None
