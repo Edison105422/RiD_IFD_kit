@@ -31,6 +31,9 @@ def replace(file_name, pattern, subst):
 
 
 def create_path(path):
+    """
+    Create directory {path}. If {path} exists, create abspath{path.bk00n}.
+    """
     if os.path.isdir(path):
         dirname = os.path.abspath(path)
         counter = 0
@@ -60,6 +63,9 @@ def copy_file_list(file_list, from_path, to_path):
 
 
 def checkfile(file_path):
+    """
+    If file_path exists, remove it.
+    """
     if os.path.exists(file_path):
         if os.path.isfile(file_path):
             os.remove(file_path)
@@ -87,6 +93,7 @@ def repeat_to_length(string_to_expand, length):
 
 def cmd_append_log(cmd,
                    log_file):
+    """Return {cmd} + 1> + {log_file} + 2> + {log_file}."""
     ret = cmd
     ret = ret + " 1> " + log_file
     ret = ret + " 2> " + log_file

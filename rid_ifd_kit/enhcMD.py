@@ -19,9 +19,10 @@ from rid_ifd_kit.lib.cmpf import cmpf
 from rid_ifd_kit.lib.machine import set_resource, set_machine
 from dpdispatcher.submission import Submission, Job, Task
 
-enhc_name = "00.compressedMD"
+enhc_name = "00.enhcMD"
 enhc_plm = "plumed.dat"
 enhc_bf_plm = "plumed.bf.dat"
+enhc_ifd_plm = "plumed.bf.dat"
 enhc_out_plm = "plm.out"
 enhc_out_conf = "confs/"
 enhc_out_angle = "angle.rad.out"
@@ -45,7 +46,7 @@ def adjust_lvl(prev_enhc_path, num_of_cluster_threshold, jdata):
         enhc_trust_lvl_2 = enhc_trust_lvl_1+1
     return enhc_trust_lvl_1, enhc_trust_lvl_2
 
-
+"""
 def prep_graph(graph_files, walker_path):
     # copy graph files
     cwd = os.getcwd()
@@ -70,11 +71,12 @@ def get_graph_list(graph_files):
             graph_list = "%s,%s" % (graph_list, file_name)
         counter = counter + 1
     return graph_list
-
+"""
 
 def make_enhc(iter_index,
               json_file,
               mol_dir,
+              at_upper,
               base_dir='./'):
     base_dir = os.path.abspath(base_dir) + "/"
     json_file = os.path.abspath(json_file)
@@ -84,13 +86,13 @@ def make_enhc(iter_index,
     jdata = json.load(fp)
     fp.close()
     numb_walkers = jdata["numb_walkers"]
-    enhc_trust_lvl_1 = jdata["bias_trust_lvl_1"]
-    enhc_trust_lvl_2 = jdata["bias_trust_lvl_2"]
     nsteps = jdata["bias_nsteps"]
     frame_freq = jdata["bias_frame_freq"]
-    num_of_cluster_threshold = jdata["num_of_cluster_threshold"]
+    #num_of_cluster_threshold = jdata["num_of_cluster_threshold"]
     dt = jdata["bias_dt"]
     temperature = jdata["bias_temperature"]
+    template_lig = jdata["template_lig"]
+    target_lig = jdata["target_lig"]
 
     iter_name = make_iter_name(iter_index)
     work_path = base_dir + iter_name + "/" + enhc_name + "/"
@@ -108,7 +110,7 @@ def make_enhc(iter_index,
         walker_path = work_path + make_walker_name(walker_idx) + "/"
         create_path(walker_path)
 
-        make_grompp(walker_path + "grompp.mdp", "bias", nsteps,
+        make_grompp(walker_path + "grompp.mdp", "upperwall", nsteps,
                     frame_freq, temperature=temperature, dt=dt, define='')
         # make_grompp(walker_path + "grompp_restraint.mdp", "res", nsteps, frame_freq, temperature=temperature, dt=dt, define='-DPOSRE')
 
@@ -122,9 +124,9 @@ def make_enhc(iter_index,
         shutil.copy(conf_file, walker_path + "conf.gro")
         checkfile(walker_path + "conf_init.gro")
         shutil.copy(conf_file, walker_path + "conf_init.gro")
+        #topol_file = walker_path + "topol.top"
 
         # if have prev confout.gro, use as init conf
-        """
         if iter_index > 0:
             prev_enhc_path = base_dir + \
                 make_iter_name(iter_index-1) + "/" + enhc_name + \
@@ -139,23 +141,9 @@ def make_enhc(iter_index,
                 raise RuntimeError(
                     "cannot find prev output conf file  " + prev_enhc_path + 'confout.gro')
             log_task("use conf of iter " + make_iter_name(iter_index -
-                                                          1) + " walker " + make_walker_name(walker_idx))
-
-            enhc_trust_lvl_1, enhc_trust_lvl_2 = adjust_lvl(
-                prev_enhc_path, num_of_cluster_threshold, jdata)
-"""
-        np.savetxt(walker_path+'trust_lvl1.dat',
-                   [enhc_trust_lvl_1], fmt='%.6f')
-
-        #make_plumed(walker_path, "dpbias", conf_file, cv_file)
-        make_plumed(walker_path, "bf", conf_file)
-        make_plumed(walker_path, "upperwall", conf_file)
-
-        #prep_graph(graph_files, walker_path)
-        #graph_list = get_graph_list(graph_files)
-        graph_list = []
-        #conf_enhc_plumed(walker_path + enhc_plm, "enhc", graph_list, enhc_trust_lvl_1=enhc_trust_lvl_1,
-        #                 enhc_trust_lvl_2=enhc_trust_lvl_2, frame_freq=frame_freq, enhc_out_plm=enhc_out_plm)
+                                                          1) + " walker " + make_walker_name(walker_idx))#need editting
+  
+        make_plumed(walker_path, "upperwall", conf_file, "topol_file", template_lig, target_lig, at_upper, 0)
         conf_enhc_plumed(walker_path + enhc_bf_plm, "bf",
                          frame_freq=frame_freq, enhc_out_plm=enhc_out_plm)
         log_task("brute force MD without NN acc")
@@ -165,7 +153,7 @@ def make_enhc(iter_index,
 def run_enhc(iter_index,
              json_file,
              machine_json,
-             base_dir='./'):
+             base_dir='./',):
     json_file = os.path.abspath(json_file)
     base_dir = os.path.abspath(base_dir) + "/"
     iter_name = make_iter_name(iter_index)
@@ -183,9 +171,9 @@ def run_enhc(iter_index,
     # assuming at least one walker
     graph_files = glob.glob(work_path + (make_walker_name(0)) + "/*.pb")
     if len(graph_files) != 0:
-        gmx_run = gmx_run + " -plumed " + enhc_plm
+        gmx_run = gmx_run + " -plumed " + enhc_ifd_plm
     else:
-        gmx_run = gmx_run + " -plumed " + enhc_bf_plm
+        gmx_run = gmx_run + " -plumed " + enhc_ifd_plm
     gmx_prep_cmd = cmd_append_log(gmx_prep, gmx_prep_log)
     gmx_run_cmd = cmd_append_log(gmx_run, gmx_run_log)
     numb_walkers = jdata["numb_walkers"]
@@ -226,7 +214,6 @@ def post_enhc(iter_index,
     iter_name = make_iter_name(iter_index)
     work_path = base_dir + iter_name + "/" + enhc_name + "/"
     json_file = os.path.abspath(json_file)
-    json_file = os.path.abspath(json_file)
     fp = open(json_file, 'r')
     jdata = json.load(fp)
     fp.close()
@@ -260,8 +247,14 @@ def post_enhc(iter_index,
         work_base=work_path, resources=resources, machine=machine, task_list=gmx_split_task)
     gmx_split_submission.run_submission()
 
-    for ii in range(numb_walkers):
-        walker_path = work_path + make_walker_name(ii) + "/"
-        angles = np.loadtxt(walker_path + enhc_out_plm)
-        np.savetxt(walker_path + enhc_out_angle, angles[:, 1:], fmt="%.6f")
+    #for ii in range(numb_walkers):
+    #    walker_path = work_path + make_walker_name(ii) + "/"
+    #    angles = np.loadtxt(walker_path + enhc_out_plm)
+    #    np.savetxt(walker_path + enhc_out_angle, angles[:, 1:], fmt="%.6f")#output angles
     print("Post process of enhanced sampling finished.")
+
+    """
+    Align and output RMSD: 
+    gmx confrms -f1 <> -f2 <> -o <.pdb> -name 
+    Do on each conf in traj (??/confs/confxxx.gro)
+    """

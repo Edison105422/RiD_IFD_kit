@@ -1,6 +1,7 @@
 import re
 import os
 from rid_ifd_kit import ROOT_PATH
+from rid_ifd_kit.lib.utils import replace
 
 
 def _general_mdp(title, temperature=300, define=None, dt=0.002, nsteps=50000, frame_freq=500):
@@ -57,7 +58,7 @@ def _general_mdp(title, temperature=300, define=None, dt=0.002, nsteps=50000, fr
     ret += "optimize-fft             = no\n"
     # Temperature
     ret += "tcoupl                   = v-rescale\n"
-    ret += "tc-grps                  = water non-water\n"
+    ret += "tc-grps                  = Water non-Water\n"
     ret += "tau-t                    = 0.2 0.2\n"
     ret += "ref-t                    = {} {}\n".format(
         temperature, temperature)
@@ -136,7 +137,16 @@ def gen_grompp_res(nsteps, frame_freq, title='res_md', temperature=300, define="
     return ret
 
 
+def gen_grompp_upw(nsteps, frame_freq, title='upperwall', temperature=300, define="-DPOSRE", dt=0.002):
+    ret = general_mdp(title, temperature=temperature, define=define,
+                      nsteps=nsteps, frame_freq=frame_freq, dt=dt)
+    return ret
+
+
 def make_grompp(out_path, mdp_type, nsteps, frame_freq, title=None, temperature=300, define=None, dt=0.002):
+    """
+    Make grompp file.
+    """
     if mdp_type == 'bias':
         if os.path.basename(out_path) == '':
             out_path = os.path.abspath(out_path) + "/grompp.mdp"
@@ -155,11 +165,27 @@ def make_grompp(out_path, mdp_type, nsteps, frame_freq, title=None, temperature=
         ret = gen_grompp_res(nsteps, frame_freq, title=title,
                              temperature=temperature, define=define, dt=dt)
 
+    if mdp_type == 'upperwall':
+        if os.path.basename(out_path) == '':
+            out_path = os.path.abspath(out_path) + "/grompp_upperwall.mdp"
+        if title is None:
+            title = 'upperwall'
+        ret = gen_grompp_upw(nsteps, frame_freq, title=title,
+                              temperature=temperature, define=define, dt=dt)
+
     with open(out_path, 'w') as mdp:
         mdp.write(ret)
 
 
 def modify_grompp_bias(gro_file, nsteps, frame_freq):
+    replace(gro_file, "nsteps.*=.*", "nsteps = %d" % nsteps)
+    replace(gro_file, "nstxout.*=.*", "nstxout = %d" % frame_freq)
+    replace(gro_file, "nstvout.*=.*", "nstvout = %d" % frame_freq)
+    replace(gro_file, "nstfout.*=.*", "nstfout = %d" % frame_freq)
+    replace(gro_file, "nstxtcout.*=.*", "nstxtcout = %d" % frame_freq)
+    replace(gro_file, "nstenergy.*=.*", "nstenergy = %d" % frame_freq)
+
+def modify_grompp_upw(gro_file, nsteps, frame_freq):
     replace(gro_file, "nsteps.*=.*", "nsteps = %d" % nsteps)
     replace(gro_file, "nstxout.*=.*", "nstxout = %d" % frame_freq)
     replace(gro_file, "nstvout.*=.*", "nstvout = %d" % frame_freq)

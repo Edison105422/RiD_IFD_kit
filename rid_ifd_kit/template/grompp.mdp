@@ -92,7 +92,7 @@ optimize-fft             = no
 ; Temperature coupling  
 tcoupl                   = v-rescale
 ; Groups to couple separately
-tc-grps                  = water non-water
+tc-grps                  = Water non-Water
 ; Time constant (ps) and reference temperature (K)
 tau-t                    = 0.2 0.2
 ref-t                    = 320 320

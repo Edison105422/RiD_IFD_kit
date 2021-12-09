@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import numpy as np
+import MDAnalysis
 from rid_ifd_kit.lib.make_ndx import make_ndx, make_protein_atom_index
 from rid_ifd_kit.lib.utils import replace, print_list, print_repeat_list
 from rid_ifd_kit.lib.make_def import make_general_angle_def, make_general_dist_def, make_angle_def, make_dist_def
@@ -26,17 +27,28 @@ def make_restraint(angle_names,
                 "\n")
     return ret, res_names
 
-def make_walls(CONF,
+def make_walls(CONF, TOPOL, template_lig, target_lig,#template_lig is the original lig, target_lig is the lig to dock. Both are lig_names.
                 kappa,#check papers for value of kappa
                 at_upper, at_lower,
                 exp,# assume the kappa and exp, eps are identical for up and low
                 eps,
                 offset):
+    """
+    CONF: configuration file
+    TOPOL: topol file
+    target_lig: NAME of target ligand (original ligand)
+    template_lig: NAME of template ligand (the ligand to dock)
+    """
     ret = ""
     wall_names = ["uwall","lwall"]
-    dist = gen_centerdist(CONF)
-    ret += ("uwall: UPPER_WALLS " +
-            ("ARG=" + dist).ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
+    #lig_atom_idx, lig_atoms, nb_CA = gen_poc(CONF, TOPOL, target_lig)
+    lig_atom_idx = target_lig
+    nb_CA = template_lig
+    ret += ("poc: GHOST ATOMS=" + nb_CA + " COORDINATES=" + "6.987,6.361,2.064" +"\n" +
+            "lig: CENTER ATOMS=" + lig_atom_idx + "\n" +
+            "dist: DISTANCE ATOMS=poc,lig" + "\n" +
+            "uwall: UPPER_WALLS " +
+            ("ARG=dist").ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
             "AT=" + str(at_upper) + " " +
             "KAPPA=" + str(kappa) + " " +
             "EXP=" + str(exp) + " " +
@@ -44,7 +56,7 @@ def make_walls(CONF,
             "OFFSET=" + str(offset) + " " +
             "\n" +
             "lwall: LOWER_WALLS " +
-            ("ARG=" + dist).ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
+            ("ARG=dist").ljust(16) + " " +#"add".ljust(10,'0'): "add0000000"
             "AT=" + str(at_lower) + " " +
             "KAPPA=" + str(kappa) + " " +
             "EXP=" + str(exp) + " " +
@@ -54,10 +66,32 @@ def make_walls(CONF,
     return ret, wall_names
 
 
-def gen_centerdist(CONF):
-    
-    virtual_lig = 
-    return dist
+def gen_poc(CONF, TOPOL, lig_name):
+    """
+    Input: configuration, topology, and name of ligand
+    Output: a string of index of ligand_atoms in the ligand, a list of ligand_atoms, 3 reference atoms for GHOST
+    """
+    u = MDAnalysis.Universe(TOPOL, CONF)
+    num_atoms = len(u.atoms)
+    num_res = len(u.residues)
+    lig_atom_idx = []
+    lig_atoms = u.select_atoms(f"segid {lig_name}")
+    for atom in lig_atoms:
+        lig_atom_idx.append(u.atoms.index(atom))
+       # atom = u.atoms[i]
+       # if atom.residues[0].resname == lig_name:
+        #    lig_atom_idx.append(i) 
+        #    lig_atoms.append(u.atom[i]) 
+    CA = u.select_atoms(f"protein and name CA and around 4 {lig_name}") #Alpha carbons in 4 Angstroms cutoff of ligand
+    num_pocket_CA = len(CA)
+    neib = [CA[0].id, u.atoms.index(CA[num_pocket_CA//3+1]), u.atoms.index(CA[2*num_pocket_CA//3+1])] #3 CA distant to each other
+    return (",".join(lig_atom_idx),lig_atoms, ",".join(neib))
+
+
+def gen_lig(CONF, TOPOL, lig_name):
+    print("Find ligand atoms. Not realized yet.")
+    return
+
 
 def make_deep_bias(angle_names,
                    trust_lvl_1=1.0,
@@ -117,7 +151,9 @@ def user_plumed(cv_file): #read from cv_file
 
 def general_plumed(TASK,
                    CONF,
+                   TOPOL, template_lig, target_lig,
                    at_upper,
+                   at_lower,
                    kappa=500.0,
                    temp=3000.0,
                    tau=10.0,
@@ -126,7 +162,8 @@ def general_plumed(TASK,
                    pfile="plm.out"):
     ret = ""
     if TASK == "upperwall":
-        ptr, ptr_names = make_walls(CONF, kappa, at_upper, 0.0, 2, 1, 0)
+        ptr, ptr_names = make_walls(CONF,TOPOL, template_lig, target_lig,
+                                    kappa, at_upper, at_lower, exp=2, eps=1, offset=0)
         ret += (ptr)
         ret += "\n"
     elif TASK == "bf":
@@ -137,15 +174,17 @@ def general_plumed(TASK,
 
 def make_plumed(OUT,
                 TASK,
-                CONF,
-                at_upper=5.0,
+                CONF,TOPOL, template_lig, target_lig,
+                at_upper,
+                at_lower,
                 kappa=500.0,
                 temp=3000.0,
                 tau=10.0,
                 gamma=0.1,
                 pstride=5,
                 pfile="plm.out"):
-    ret = general_plumed(TASK, CONF, at_upper, kappa=kappa, temp=temp,
+    ret = general_plumed(TASK, CONF, TOPOL, template_lig, target_lig,
+                        at_upper, at_lower, kappa=500.0, temp=temp,
                          tau=tau, gamma=gamma, pstride=pstride, pfile=pfile)
     if os.path.basename(OUT) == '':
         if TASK == "dpbias":
@@ -155,22 +194,22 @@ def make_plumed(OUT,
         elif TASK == "res":
             OUT = os.path.abspath(OUT) + "/plumed.res.dat"
         elif TASK == "upperwall":
-            OUT = os.path.abspath(OUT) + "/plumed.upperwall.dat"
+            OUT = os.path.abspath(OUT) + "/plumed.bf.dat"
     with open(OUT, 'w') as plu:
         plu.write(ret)
 
 def make_plumed_origin(OUT,
                 TASK,
-                CONF,
-                CV_FILE,
-                at_upper,
-                kappa=500.0,
+                CONF,TOPOL, template_lig, target_lig,
+                at_upper, at_lower,
+                kappa=500.0, 
                 temp=3000.0,
                 tau=10.0,
                 gamma=0.1,
                 pstride=5,
                 pfile="plm.out"):
-    ret = general_plumed(TASK, CONF, CV_FILE, at_upper, kappa=kappa, temp=temp,
+    ret = general_plumed(TASK, CONF, TOPOL, template_lig, target_lig,
+                        at_upper, at_lower, kappa=500.0, temp=temp,
                          tau=tau, gamma=gamma, pstride=pstride, pfile=pfile)
     if os.path.basename(OUT) == '':
         if TASK == "dpbias":
@@ -180,7 +219,7 @@ def make_plumed_origin(OUT,
         elif TASK == "res":
             OUT = os.path.abspath(OUT) + "/plumed.res.dat"
         elif TASK == "upperwall":
-            OUT = os.path.abspath(OUT) + "/plumed.upperwall.dat"
+            OUT = os.path.abspath(OUT) + "/plumed.bf.dat"
     with open(OUT, 'w') as plu:
         plu.write(ret)
 

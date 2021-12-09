@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+from rid_ifd_kit.lib.make_def import make_general_angle_def
 
 amoni_acids = ["ARG", "HIS", "LYS", 'ASP', 'GLU', 'SER', 'THR', 'ASN', 'GLN', 'CYS', 'SEC',
                'GLY', 'PRO', 'ALA', 'VAL', 'ILE', 'LEU', 'MET', 'PHE', 'TYR', 'TRP', 'ACE', 'NME']
